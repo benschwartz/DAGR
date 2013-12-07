@@ -1,9 +1,14 @@
 
+
 public class BulkDigester {
 
 	public static void main(String[] args) {
-		// TODO Auto-generated method stub
-
+		if(Utils.connect()){
+			Utils.disconnnect();
+		}
+		else{
+			throw new RuntimeException();
+		}
 	}
 
 }
