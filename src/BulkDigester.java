@@ -87,14 +87,14 @@ public class BulkDigester {
 			long modifiedTime = attribs.readAttributes().lastModifiedTime()
 					.toMillis();
 			String owner = ownerAttribs.getOwner().getName();
+			String DAGRLocation = directoryPath.getParent().toString();
 			LOGGER.info("Processed directory: " + path + "\nname: " + DAGRName
-					+ "\nparent uuid: " + parent + "\nuuid: " + uuid + "\ntype: "
-					+ DAGRType + "\ncreate time: " + createTime + "\nmodified time: " + modifiedTime + "\nowner: "
-					+ owner + "\nsize: " + size);
-			Utils.insertDAGR(uuid, DAGRName, "FROM_UNIXTIME(" + createTime
-					+ ")","FROM_UNIXTIME(" + modifiedTime
-					+ ")", directoryPath.toString(), parent, owner,
-					DAGRType, size);
+					+ "\nparent uuid: " + parent + "\nuuid: " + uuid
+					+ "\ntype: " + DAGRType + "\ncreate time: " + createTime
+					+ "\nmodified time: " + modifiedTime + "\nowner: " + owner
+					+ "\nsize: " + size);
+			Utils.insertDAGR(uuid, DAGRName, createTime, modifiedTime,
+					DAGRLocation, parent, owner, DAGRType, size);
 		} catch (IOException e) {
 			LOGGER.log(Level.SEVERE, "could not get attributes of " + path, e);
 			return;
@@ -120,6 +120,7 @@ public class BulkDigester {
 				filePath, FileOwnerAttributeView.class,
 				LinkOption.NOFOLLOW_LINKS);
 		String DAGRName = filePath.getFileName().toString();
+		String DAGRLocation = filePath.getParent().toString();
 		String DAGRType = FilenameUtils.getExtension(filePath.toString());
 		try {
 			long size = Files.size(filePath);
@@ -128,14 +129,13 @@ public class BulkDigester {
 			Long modifiedTime = attribs.readAttributes().lastModifiedTime()
 					.toMillis();
 			String owner = ownerAttribs.getOwner().getName();
-			Utils.insertDAGR(uuid, DAGRName, "FROM_UNIXTIME(" + createTime
-					+ ")","FROM_UNIXTIME(" + modifiedTime
-					+ ")", filePath.toString(), parent, owner, DAGRType,
-					size);
+			Utils.insertDAGR(uuid, DAGRName, createTime, modifiedTime,
+					DAGRLocation, parent, owner, DAGRType, size);
 			LOGGER.info("Processed file: " + file + "\nname: " + DAGRName
-					+ "\nparent uuid: " + parent + "\nuuid: " + uuid + "\ntype: "
-					+ DAGRType + "\ncreate time: " + createTime + "\nmodified time: " + modifiedTime + "\nowner: "
-					+ owner + "\nsize: " + size);
+					+ "\nparent uuid: " + parent + "\nuuid: " + uuid
+					+ "\ntype: " + DAGRType + "\ncreate time: " + createTime
+					+ "\nmodified time: " + modifiedTime + "\nowner: " + owner
+					+ "\nsize: " + size);
 		} catch (IOException e) {
 			LOGGER.log(Level.SEVERE, "could not get attributes of " + file, e);
 		}

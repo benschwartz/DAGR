@@ -72,18 +72,31 @@ public class Utils {
 
 	}
 
-	public static void insertDAGR(String GUID, String name, String create_date, String modify_date,
-			String location, String parentGUID, String author, String type,
-			long size) {
+	public static void insertDAGR(String GUID, String name, long create_date,
+			long modify_date, String location, String parentGUID,
+			String author, String type, long size) {
 		GUID = encodeString(GUID);
 		name = encodeString(name);
 		location = encodeString(location);
 		parentGUID = encodeString(parentGUID);
 		author = encodeString(author);
 		type = encodeString(type);
+		String existingGUID = null;
+		try {
+			existingGUID = containsDAGR(name, location);
+		} catch (SQLException e) {
+			LOGGER.log(Level.SEVERE,
+					"Could not determine if the object is in the DAGR", e);
+			return;
+		}
+		if (existingGUID != null) {
+			LOGGER.warning(name + " is already present in the DAGR with GUID "
+					+ existingGUID);
+			return;
+		}
 		try {
 			Statement stmt = conn.createStatement();
-			//AuthorID
+			// AuthorID
 			int authorID = -1;
 			ResultSet rs = stmt
 					.executeQuery("Select author_id from author where name='"
@@ -108,11 +121,12 @@ public class Utils {
 				}
 				authorID = rs.getInt("author_id");
 				rs.close();
-			
+
 			}
 			// Type
-			rs = stmt.executeQuery("Select type from type where type = '" + type + "'");
-			if(!rs.next()){
+			rs = stmt.executeQuery("Select type from type where type = '"
+					+ type + "'");
+			if (!rs.next()) {
 				stmt.execute("INSERT INTO type (type) VALUES ('" + type + "');");
 			}
 			rs.close();
@@ -138,11 +152,28 @@ public class Utils {
 		}
 	}
 
+	private static String containsDAGR(String name, String location)
+			throws SQLException {
+		String existingGUID = null;
+		Statement stmt = conn.createStatement();
+		String sql = "SELECT guid FROM dagr where name='" + name
+				+ "' AND location='" + location + "';";
+		LOGGER.info("Checking for: " + sql);
+		ResultSet rs = stmt.executeQuery(sql);
+		if(rs.next()){
+			existingGUID = rs.getString("guid");
+		}
+		rs.close();
+		stmt.close();
+		return existingGUID;
+	}
+
 	public static String getFileSystemUUID() {
 		return "FS_ROOT";
 	}
-	
-	private static String encodeString(String str){
-		return str.replace("\\", "\\\\").replace("'","\'").replace("\"", "\\\"");
+
+	private static String encodeString(String str) {
+		return str.replace("\\", "\\\\").replace("'", "\'")
+				.replace("\"", "\\\"");
 	}
 }
