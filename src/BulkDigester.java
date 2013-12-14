@@ -59,16 +59,41 @@ public class BulkDigester {
 			formatter.printHelp("java -jar DAGR.jar", options);
 			return;
 		}
-		if (!Utils.connect()) {
-			return;
-		}
 		String parent = Utils.getFileSystemUUID();
-		processDirectory(parent, cmd.getOptionValue("p"), cmd.hasOption("r"));
-		Utils.disconnnect();
+		Path top = FileSystems.getDefault().getPath(cmd.getOptionValue("p"));
+		if (Files.exists(top)) {
+			if (Files.isDirectory(top)) {
+				processDirectory(parent, cmd.getOptionValue("p"),
+						cmd.hasOption("r"));
+			} else {
+				processFile(parent, top.toAbsolutePath().toString());
+			}
+		} else {
+			LOGGER.severe("Invalid path: " + cmd.getOptionValue("p"));
+		}
 	}
 
 	private static void processDirectory(String parent, String path,
 			boolean descend) {
+		String uuid=insertDirectory(parent, path);
+		List<String> files = getFiles(path);
+		for (String file : files) {
+			processFile(uuid, file);
+		}
+		if (descend) {
+			for (String subdir : getSubdirectories(path)) {
+				processDirectory(uuid, subdir, descend);
+			}
+		}
+		else{
+			for (String subdir : getSubdirectories(path)){
+				insertDirectory(uuid, subdir);
+			}
+		}
+
+	}
+	
+	private static String insertDirectory(String parent, String path){
 		String uuid = UUID.randomUUID().toString();
 		Path directoryPath = FileSystems.getDefault().getPath(path);
 		String DAGRName = directoryPath.getFileName().toString();
@@ -88,27 +113,25 @@ public class BulkDigester {
 					.toMillis();
 			String owner = ownerAttribs.getOwner().getName();
 			String DAGRLocation = directoryPath.getParent().toString();
-			LOGGER.info("Processed directory: " + path + "\nname: " + DAGRName
-					+ "\nparent uuid: " + parent + "\nuuid: " + uuid
-					+ "\ntype: " + DAGRType + "\ncreate time: " + createTime
-					+ "\nmodified time: " + modifiedTime + "\nowner: " + owner
-					+ "\nsize: " + size);
-			Utils.insertDAGR(uuid, DAGRName, createTime, modifiedTime,
-					DAGRLocation, parent, owner, DAGRType, size);
+			/*
+			 * LOGGER.info("Processed directory: " + path + "\nname: " +
+			 * DAGRName + "\nparent uuid: " + parent + "\nuuid: " + uuid +
+			 * "\ntype: " + DAGRType + "\ncreate time: " + createTime +
+			 * "\nmodified time: " + modifiedTime + "\nowner: " + owner +
+			 * "\nsize: " + size);
+			 */
+			String result = Utils.insertDAGR(uuid, DAGRName, createTime,
+					modifiedTime, DAGRLocation, parent, owner, DAGRType, size);
+			if(result != null){
+				return result;
+			}
+			else{
+				return null;
+			}
 		} catch (IOException e) {
 			LOGGER.log(Level.SEVERE, "could not get attributes of " + path, e);
-			return;
+			return null;
 		}
-		List<String> files = getFiles(path);
-		for (String file : files) {
-			processFile(uuid, file);
-		}
-		if (descend) {
-			for (String subdir : getSubdirectories(path)) {
-				processDirectory(uuid, subdir, descend);
-			}
-		}
-
 	}
 
 	private static void processFile(String parent, String file) {
@@ -131,11 +154,12 @@ public class BulkDigester {
 			String owner = ownerAttribs.getOwner().getName();
 			Utils.insertDAGR(uuid, DAGRName, createTime, modifiedTime,
 					DAGRLocation, parent, owner, DAGRType, size);
-			LOGGER.info("Processed file: " + file + "\nname: " + DAGRName
-					+ "\nparent uuid: " + parent + "\nuuid: " + uuid
-					+ "\ntype: " + DAGRType + "\ncreate time: " + createTime
-					+ "\nmodified time: " + modifiedTime + "\nowner: " + owner
-					+ "\nsize: " + size);
+			/*
+			 * LOGGER.info("Processed file: " + file + "\nname: " + DAGRName +
+			 * "\nparent uuid: " + parent + "\nuuid: " + uuid + "\ntype: " +
+			 * DAGRType + "\ncreate time: " + createTime + "\nmodified time: " +
+			 * modifiedTime + "\nowner: " + owner + "\nsize: " + size);
+			 */
 		} catch (IOException e) {
 			LOGGER.log(Level.SEVERE, "could not get attributes of " + file, e);
 		}

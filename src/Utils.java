@@ -15,6 +15,12 @@ public class Utils {
 	private static Connection conn = null;
 
 	static {
+		try {
+			Class.forName("com.mysql.jdbc.Driver").newInstance();
+		} catch (InstantiationException | IllegalAccessException
+				| ClassNotFoundException e) {
+			throw new ExceptionInInitializerError(e);
+		}
 		Properties props = new Properties();
 		InputStream iStream = Utils.class
 				.getResourceAsStream("creds.properties");
@@ -32,6 +38,7 @@ public class Utils {
 		URL = props.getProperty("URL");
 		user = props.getProperty("user");
 		password = props.getProperty("password");
+		connect();
 	}
 	private static final String URL;
 	private static final String user;
@@ -59,6 +66,7 @@ public class Utils {
 		}
 		try {
 			conn.close();
+			conn = null;
 		} catch (SQLException e) {
 			LOGGER.log(Level.SEVERE, "could not close connection", e);
 		}
@@ -72,7 +80,20 @@ public class Utils {
 
 	}
 
-	public static void insertDAGR(String GUID, String name, long create_date,
+	/**
+	 * 
+	 * @param GUID
+	 * @param name
+	 * @param create_date
+	 * @param modify_date
+	 * @param location
+	 * @param parentGUID
+	 * @param author
+	 * @param type
+	 * @param size
+	 * @return GUID of the inserted result
+	 */
+	public static String insertDAGR(String GUID, String name, long create_date,
 			long modify_date, String location, String parentGUID,
 			String author, String type, long size) {
 		GUID = encodeString(GUID);
@@ -87,12 +108,14 @@ public class Utils {
 		} catch (SQLException e) {
 			LOGGER.log(Level.SEVERE,
 					"Could not determine if the object is in the DAGR", e);
-			return;
+			disconnnect();
+			connect();
+			return null;
 		}
 		if (existingGUID != null) {
 			LOGGER.warning(name + " is already present in the DAGR with GUID "
 					+ existingGUID);
-			return;
+			return existingGUID;
 		}
 		try {
 			Statement stmt = conn.createStatement();
@@ -107,7 +130,7 @@ public class Utils {
 				rs.close();
 				String insert = "INSERT INTO author (name) VALUES ('" + author
 						+ "');";
-				LOGGER.info(insert);
+				//LOGGER.info(insert);
 				stmt.execute(insert);
 				rs = stmt
 						.executeQuery("Select author_id from author where name='"
@@ -117,7 +140,7 @@ public class Utils {
 					stmt.close();
 					LOGGER.log(Level.SEVERE, "could not insert DAGR with GUID "
 							+ GUID);
-					return;
+					return GUID;
 				}
 				authorID = rs.getInt("author_id");
 				rs.close();
@@ -143,12 +166,18 @@ public class Utils {
 			sql.append("'" + type + "',");
 			sql.append(size);
 			sql.append(");");
-			LOGGER.info(sql.toString());
+			//	LOGGER.info(sql.toString());
 			stmt.execute(sql.toString());
 			stmt.close();
+			LOGGER.info("INSERT " + location + " " + name + " " + GUID);
+			return GUID;
 		} catch (SQLException e) {
-			LOGGER.log(Level.SEVERE, "Could not insert DAGR with GUID " + GUID,
+			String DAGR = location + " " + name + " " + GUID;
+			LOGGER.log(Level.SEVERE, "Could not insert DAGR\n" + DAGR,
 					e);
+			disconnnect();
+			connect();
+			return null;
 		}
 	}
 
@@ -158,7 +187,7 @@ public class Utils {
 		Statement stmt = conn.createStatement();
 		String sql = "SELECT guid FROM dagr where name='" + name
 				+ "' AND location='" + location + "';";
-		LOGGER.info("Checking for: " + sql);
+		//LOGGER.info("Checking for: " + sql);
 		ResultSet rs = stmt.executeQuery(sql);
 		if(rs.next()){
 			existingGUID = rs.getString("guid");
