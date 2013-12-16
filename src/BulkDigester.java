@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributeView;
 import java.nio.file.attribute.FileOwnerAttributeView;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.logging.Level;
@@ -44,6 +45,7 @@ public class BulkDigester {
 		options = new Options();
 		options.addOption("p", true, "path");
 		options.addOption("r", false, "recursively descend into directory");
+		options.addOption("k", true, "keyword");
 	}
 
 	public static void main(String[] args) {
@@ -62,11 +64,15 @@ public class BulkDigester {
 		String parent = Utils.getFileSystemUUID();
 		Path top = FileSystems.getDefault().getPath(cmd.getOptionValue("p"));
 		if (Files.exists(top)) {
+			List<String> kws = null;
+			if (cmd.hasOption("k")) {
+				kws = Arrays.asList(cmd.getOptionValues("k"));
+			}
 			if (Files.isDirectory(top)) {
 				processDirectory(parent, cmd.getOptionValue("p"),
-						cmd.hasOption("r"));
+						cmd.hasOption("r"), kws);
 			} else {
-				processFile(parent, top.toAbsolutePath().toString());
+				processFile(parent, top.toAbsolutePath().toString(), kws);
 			}
 		} else {
 			LOGGER.severe("Invalid path: " + cmd.getOptionValue("p"));
@@ -74,26 +80,26 @@ public class BulkDigester {
 	}
 
 	private static void processDirectory(String parent, String path,
-			boolean descend) {
-		String uuid=insertDirectory(parent, path);
+			boolean descend, List<String> keywords) {
+		String uuid = insertDirectory(parent, path, keywords);
 		List<String> files = getFiles(path);
 		for (String file : files) {
-			processFile(uuid, file);
+			processFile(uuid, file, keywords);
 		}
 		if (descend) {
 			for (String subdir : getSubdirectories(path)) {
-				processDirectory(uuid, subdir, descend);
+				processDirectory(uuid, subdir, descend, keywords);
 			}
-		}
-		else{
-			for (String subdir : getSubdirectories(path)){
-				insertDirectory(uuid, subdir);
+		} else {
+			for (String subdir : getSubdirectories(path)) {
+				insertDirectory(uuid, subdir, keywords);
 			}
 		}
 
 	}
-	
-	private static String insertDirectory(String parent, String path){
+
+	private static String insertDirectory(String parent, String path,
+			List<String> keywords) {
 		String uuid = UUID.randomUUID().toString();
 		Path directoryPath = FileSystems.getDefault().getPath(path);
 		String DAGRName = directoryPath.getFileName().toString();
@@ -122,19 +128,26 @@ public class BulkDigester {
 			 */
 			String result = Utils.insertDAGR(uuid, DAGRName, createTime,
 					modifiedTime, DAGRLocation, parent, owner, DAGRType, size);
-			if(result != null){
-				return result;
+			if (keywords != null && result != null) {
+				List<String> already = Utils.getKeywords(result);
+				for (String kw : keywords) {
+					if (!already.contains(kw)) {
+						Utils.addKeyword(result, kw);
+					} else {
+						LOGGER.warning(result
+								+ " already is tagged with keyword " + kw);
+					}
+				}
 			}
-			else{
-				return null;
-			}
+			return result;
 		} catch (IOException e) {
 			LOGGER.log(Level.SEVERE, "could not get attributes of " + path, e);
 			return null;
 		}
 	}
 
-	private static void processFile(String parent, String file) {
+	private static void processFile(String parent, String file,
+			List<String> keywords) {
 		String uuid = UUID.randomUUID().toString();
 		Path filePath = FileSystems.getDefault().getPath(file);
 		BasicFileAttributeView attribs = Files.getFileAttributeView(filePath,
@@ -152,8 +165,19 @@ public class BulkDigester {
 			Long modifiedTime = attribs.readAttributes().lastModifiedTime()
 					.toMillis();
 			String owner = ownerAttribs.getOwner().getName();
-			Utils.insertDAGR(uuid, DAGRName, createTime, modifiedTime,
-					DAGRLocation, parent, owner, DAGRType, size);
+			String GUID = Utils.insertDAGR(uuid, DAGRName, createTime,
+					modifiedTime, DAGRLocation, parent, owner, DAGRType, size);
+			if (keywords != null && GUID != null) {
+				List<String> already = Utils.getKeywords(GUID);
+				for (String kw : keywords) {
+					if (!already.contains(kw)) {
+						Utils.addKeyword(GUID, kw);
+					} else {
+						LOGGER.warning(GUID
+								+ " already is tagged with keyword " + kw);
+					}
+				}
+			}
 			/*
 			 * LOGGER.info("Processed file: " + file + "\nname: " + DAGRName +
 			 * "\nparent uuid: " + parent + "\nuuid: " + uuid + "\ntype: " +
@@ -197,5 +221,4 @@ public class BulkDigester {
 		}
 		return subdirs;
 	}
-
 }

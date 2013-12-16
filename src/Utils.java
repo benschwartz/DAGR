@@ -5,6 +5,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -118,7 +120,8 @@ public class Utils {
 			} catch (SQLException e) {
 				LOGGER.log(Level.SEVERE,
 						"could not insert parent child relationship: {parent:"
-								+ parentGUID + ", child:" + existingGUID + "}", e);
+								+ parentGUID + ", child:" + existingGUID + "}",
+						e);
 				disconnnect();
 				connect();
 			}
@@ -245,4 +248,60 @@ public class Utils {
 		return str.replace("\\", "\\\\").replace("'", "\'")
 				.replace("\"", "\\\"");
 	}
+
+	public static void addKeyword(String GUID, String keyword) {
+		try {
+			Boolean addKW = false;
+			Statement stmt = conn.createStatement();
+			String sql = "Select count(*) COUNT FROM keyword where keyword='"
+					+ keyword + "';";
+			ResultSet rs = stmt.executeQuery(sql);
+			rs.next();
+			if (rs.getInt("COUNT") == 0) {
+				addKW = true;
+			}
+			rs.close();
+			stmt.close();
+			if (addKW) {
+				stmt = conn.createStatement();
+				sql = "INSERT INTO keyword (keyword) VALUES ('" + keyword
+						+ "');";
+				stmt.execute(sql);
+				stmt.close();
+			}
+			stmt = conn.createStatement();
+			sql = "INSERT INTO dagr_keyword_tag (GUID,keyword) VALUES ";
+			sql = sql + "('" + GUID + "','" + keyword + "');";
+			stmt.execute(sql);
+			stmt.close();
+			LOGGER.info("Attached keyword " + keyword + " to " + GUID);
+		} catch (SQLException e) {
+			LOGGER.log(Level.SEVERE, "Could not add keyword " + keyword
+					+ "for DAGR " + GUID, e);
+			disconnnect();
+			connect();
+		}
+	}
+	
+	public static List<String> getKeywords(String GUID) {
+		List<String> keywords = new ArrayList<String>();
+		try {
+			Statement stmt = conn.createStatement();
+			String sql = "Select keyword FROM dagr_keyword_tag where GUID='"
+					+ GUID + "';";
+			ResultSet rs = stmt.executeQuery(sql);
+			while (rs.next()) {
+				keywords.add(rs.getString("keyword"));
+			}
+			rs.close();
+			stmt.close();
+		} catch (SQLException e) {
+			LOGGER.log(Level.SEVERE, "Could not get keywords for DAGR " + GUID,
+					e);
+			disconnnect();
+			connect();
+		}
+		return keywords;
+	}
+
 }
