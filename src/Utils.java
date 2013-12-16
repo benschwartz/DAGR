@@ -113,8 +113,18 @@ public class Utils {
 			return null;
 		}
 		if (existingGUID != null) {
+			try {
+				insertParentChild(parentGUID, existingGUID);
+			} catch (SQLException e) {
+				LOGGER.log(Level.SEVERE,
+						"could not insert parent child relationship: {parent:"
+								+ parentGUID + ", child:" + existingGUID + "}", e);
+				disconnnect();
+				connect();
+			}
 			LOGGER.warning(name + " is already present in the DAGR with GUID "
 					+ existingGUID);
+
 			return existingGUID;
 		}
 		try {
@@ -130,7 +140,7 @@ public class Utils {
 				rs.close();
 				String insert = "INSERT INTO author (name) VALUES ('" + author
 						+ "');";
-				//LOGGER.info(insert);
+				// LOGGER.info(insert);
 				stmt.execute(insert);
 				rs = stmt
 						.executeQuery("Select author_id from author where name='"
@@ -154,31 +164,61 @@ public class Utils {
 			}
 			rs.close();
 			StringBuilder sql = new StringBuilder();
-			sql.append("INSERT INTO dagr (GUID,name,date_created,date_modified,location,parent_GUID,author_id,type,size) ");
+			sql.append("INSERT INTO dagr (GUID,name,date_created,date_modified,location,author_id,type,size) ");
 			sql.append("VALUES (");
 			sql.append("'" + GUID + "',");
 			sql.append("'" + name + "',");
 			sql.append(create_date + ",");
 			sql.append(modify_date + ",");
 			sql.append("'" + location + "',");
-			sql.append("'" + parentGUID + "',");
 			sql.append(authorID + ",");
 			sql.append("'" + type + "',");
 			sql.append(size);
 			sql.append(");");
-			//	LOGGER.info(sql.toString());
+			// LOGGER.info(sql.toString());
 			stmt.execute(sql.toString());
 			stmt.close();
+			insertParentChild(parentGUID, GUID);
 			LOGGER.info("INSERT " + location + " " + name + " " + GUID);
 			return GUID;
 		} catch (SQLException e) {
 			String DAGR = location + " " + name + " " + GUID;
-			LOGGER.log(Level.SEVERE, "Could not insert DAGR\n" + DAGR,
-					e);
+			LOGGER.log(Level.SEVERE, "Could not insert DAGR\n" + DAGR, e);
 			disconnnect();
 			connect();
 			return null;
 		}
+	}
+
+	private static void insertParentChild(String parentGUID, String GUID)
+			throws SQLException {
+		Statement stmt = conn.createStatement();
+		StringBuilder sql = new StringBuilder();
+		sql.append("Select count(*) COUNT from dagr_parent_child where ");
+		sql.append("parent = '" + parentGUID + "'");
+		sql.append(" AND child = '" + GUID + "';");
+		ResultSet rs = stmt.executeQuery(sql.toString());
+		rs.next();
+		int count = rs.getInt("COUNT");
+		if (count == 1) {
+			LOGGER.warning("parent child relationship already exists {parent: "
+					+ parentGUID + ", child: " + GUID + "}");
+			rs.close();
+			stmt.close();
+			return;
+		}
+		rs.close();
+		stmt.close();
+		stmt = conn.createStatement();
+		sql = new StringBuilder();
+		sql.append("INSERT INTO dagr_parent_child (parent,child) ");
+		sql.append("VALUES (");
+		sql.append("'" + parentGUID + "',");
+		sql.append("'" + GUID + "'");
+		sql.append(");");
+		stmt.execute(sql.toString());
+		stmt.close();
+
 	}
 
 	private static String containsDAGR(String name, String location)
@@ -187,9 +227,9 @@ public class Utils {
 		Statement stmt = conn.createStatement();
 		String sql = "SELECT guid FROM dagr where name='" + name
 				+ "' AND location='" + location + "';";
-		//LOGGER.info("Checking for: " + sql);
+		// LOGGER.info("Checking for: " + sql);
 		ResultSet rs = stmt.executeQuery(sql);
-		if(rs.next()){
+		if (rs.next()) {
 			existingGUID = rs.getString("guid");
 		}
 		rs.close();
